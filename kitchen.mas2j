@@ -1,0 +1,4 @@
+MAS kitchen {
+    environment: Kitchen
+    agents: staychef;
+}
