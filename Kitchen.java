@@ -1,86 +1,126 @@
 import jason.environment.Environment;
-import jason.asSyntax.Structure;
 import jason.asSyntax.Literal;
+import jason.asSyntax.Structure;
+
 import io.socket.client.IO;
 import io.socket.client.Socket;
 import io.socket.emitter.Emitter;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+import org.json.JSONArray;
+
 public class Kitchen extends Environment {
-    int[] staychefLocation = {1, 1};
-    int[] humanLocation = {2, 3};
-    private Socket socket;
+
+    private Socket socket; // Socket connection
+    private volatile boolean active_game = false; // volatile so its visible to all threads, even the sleeping ones
+    private Thread stayThread;
 
     @Override
     public void init(String[] args) {
-        // Set initial percepts
-        addPercept(Literal.parseLiteral("location(staychef, pos(" + staychefLocation[0] + "," + staychefLocation[1] + "))"));
-        addPercept(Literal.parseLiteral("location(human, pos(" + humanLocation[0] + "," + humanLocation[1] + "))"));
+        // "fake" percept - just testing stuff
+        addPercept(Literal.parseLiteral("location(staychef, pos(1,1))"));
 
-        // Attempt to connect to the Overcooked demo server
         try {
-            // If you see Overcooked at http://localhost in your browser, this is correct.
-            // If you see :5000 in your browser, do "http://localhost:5000"
-            socket = IO.socket("http://localhost");
+            // Connect to Overcooked server on the localhost
+            socket = IO.socket("http://localhost"); 
 
+            // 2) On connect => "join" a waiting game
             socket.on(Socket.EVENT_CONNECT, new Emitter.Listener() {
                 @Override
                 public void call(Object... args) {
-                    System.out.println("Connected to Overcooked demo server!");
+                    System.out.println("Connected to Overcooked server"); // print in the MAS console for debugging
+                    try {
+                        // Build a JSON object for the "join" event 
+                        // Generally, those parameters are already passed by the user already. But if the Overcooked server fails to create a game with the user
+                        // passed parameters, it will use those ones.
+                        JSONObject data_to_join = new JSONObject()
+                                .put("create_if_not_found", false) // or true if you want it to create a game
+                                .put("params", new JSONObject()
+                                        .put("playerZero", "human")
+                                        .put("playerOne", "human")
+                                        .put("layout", "scenario1_s")
+                                        .put("gameTime", "120")
+                                        .put("dataCollection", "off")
+                                        .put("layouts", new JSONArray().put("scenario1_s"))
+                                )
+                                .put("game_name", "overcooked");
 
-                    // Emit a custom event so the server can broadcast that the Java agent is here
-                    socket.emit("java_connected", "Hello from Java agent!");
-                }
-            });
+                        // Emit "join" to Overcooked with this JSON
+                        socket.emit("join", data_to_join);
 
-            socket.on("human_action", new Emitter.Listener() {
-                @Override
-                public void call(Object... args) {
-                    if (args.length > 0) {
-                        System.out.println("Java agent received 'human_action' with data: " + args[0]);
-                        // If needed, parse the data as JSON, e.g. cast to JSONObject or similar
-                        // Then you can do your own symbolic reasoning or react in your agent code
-                    } else {
-                        System.out.println("Java agent received 'human_action' with NO data");
+                    } catch (JSONException e) {
+                        e.printStackTrace();
                     }
                 }
             });
-            socket.on("paramm", new Emitter.Listener() {
+
+            // Listen for "start_game" => user has pressed the start button and the game is active 
+            socket.on("start_game", new Emitter.Listener() {
                 @Override
                 public void call(Object... args) {
-                    if (args.length > 0) {
-                        System.out.println("Java agent received 'paramm' with data: " + args[0]);
-                        // If needed, parse the data as JSON, e.g. cast to JSONObject or similar
-                        // Then you can do your own symbolic reasoning or react in your agent code
-                    } else {
-                        System.out.println("Java agent received 'human_action' with NO data");
-                    }
+                    System.out.println("Received 'start_game' => game is now active (user pressed start button)"); // for debuging purposes, printed in MAS console
+                    active_game = true;
+
+                    // Start a background thread that repeatedly sends STAY
+                    stayThread = new Thread(() -> {
+                        try {
+                            while (active_game) {
+                                try {
+                                    // Emit "action": { "action": "STAY" } - overcooked server handles the game mechanics of it
+                                    JSONObject actionData = new JSONObject().put("action", "STAY");
+                                    socket.emit("action", actionData);
+                                } catch (JSONException e) {
+                                    e.printStackTrace();
+                                }
+
+                                Thread.sleep(500); // every 0.5s
+                            }
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                    });
+                    stayThread.start();
                 }
             });
-            
-            // Optionally handle disconnects or errors
+
+            // 4) Listen for "end_game" or "end_lobby" => stop the STAY loop as the user disconnected due to clicking a button
+            socket.on("end_game", new Emitter.Listener() {
+                @Override
+                public void call(Object... args) {
+                    System.out.println("Received end_game => stopping STAY thread");
+                    active_game = false;
+                }
+            });
+            socket.on("end_lobby", new Emitter.Listener() {
+                @Override
+                public void call(Object... args) {
+                    System.out.println("Received end_lobby => stopping STAY thread");
+                    active_game = false;
+                }
+            });
+
+            // If the overcooked server or this server disconnects => also stop
             socket.on(Socket.EVENT_DISCONNECT, new Emitter.Listener() {
                 @Override
                 public void call(Object... args) {
-                    System.out.println("Java agent disconnected from Overcooked server.");
+                    System.out.println("Disconnected from Overcooked server.");
+                    active_game = false;
                 }
             });
 
+            // Connect to the server
             socket.connect();
+
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    public boolean executeAction(String ag, Structure act) {
-        System.out.println("Agent " + ag + " is doing " + act);
-
-        if (act.getFunctor().equals("stay")) {
-            // For demonstration, update a percept
-            removePercept(Literal.parseLiteral("location(human, pos(" + humanLocation[0] + "," + humanLocation[1] + "))"));
-            humanLocation = new int[]{1, 3};
-            addPercept(Literal.parseLiteral("location(human, pos(" + humanLocation[0] + "," + humanLocation[1] + "))"));
-        }
-
+    @Override
+    public boolean executeAction(String agName, Structure act) {
+        // for now do nothing
+        System.out.println("executeAction => " + agName + " does " + act);
         return true;
     }
 }
