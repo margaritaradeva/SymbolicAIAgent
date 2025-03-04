@@ -109,6 +109,25 @@ public class Kitchen extends Environment {
                 }
             });
 
+            socket.on("java_layout", new Emitter.Listener() {
+                @Override
+                public void call(Object... args) {
+                    if (args.length > 0) {
+                        System.out.println("Received layout: " + args[0]);
+                    }
+                }
+            });
+            
+            socket.on("java_state_update", new Emitter.Listener() {
+                @Override
+                public void call(Object... args) {
+                    if (args.length > 0) {
+                        System.out.println("Received state update: " + args[0]);
+                        
+                    }
+                }
+            });
+            
             // Connect to the server
             socket.connect();
 
