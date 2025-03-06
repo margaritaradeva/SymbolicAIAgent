@@ -114,6 +114,19 @@ public class Kitchen extends Environment {
                 public void call(Object... args) {
                     if (args.length > 0) {
                         System.out.println("Received layout: " + args[0]);
+
+                        try {
+                            // layoutObj consists of layout name and the terrain (e.g. XXPXOX )
+                            JSONObject layoutObject = new JSONObject(args[0].toString());
+                            String layoutName = layoutObject.getString("layout_name"); // extract the layout
+                            JSONArray terrainArray = layoutObject.getJSONArray("terrain"); // extract the terrain
+                            
+                            
+                            addPercept("staychef", Literal.parseLiteral("layout_name(" + layoutName + ")"));
+                        
+                        } catch (JSONException e){
+                            e.printStackTrace();
+                        }
                     }
                 }
             });
