@@ -1,41 +1,65 @@
-+agent_position(X,Y) : true
-<-
-    !start_now(agent).
+!start_now.
 
-+!start_now(agent) : true
++!start_now : agent_position(3,2)
 <-
-    !move(SOMEWHERE).
+    !move_up(up);
+    !move_right(right);
+    !move_nothing(space);
+    !move_left(left);
+    !move_up(up);
+    !move_nothing(space);
+    !move_right(right);
+    !move_nothing(space);
+    !move_left(left);
+    !move_up(up);
+    !move_nothing(space);
+   !move_right(right);
+   !move_nothing(space);
+   !move_left(left);
+    !move_up(up);
+    !move_nothing(space);
+   !move_nothing(space);
+    !move_left(left);
+    !move_down(down);
+    !move_nothing(space);
+    .wait(2000);
+    !move_up(up);
+    !move_right(right);
+    !move_up(up);
+    !move_nothing(space);
+    !move_right(right);
+    !move_down(down);
+    !move_nothing(space);
+    !start_now.
 
-@move[atomic]
-+!move(SOMEWHERE) : true 
++!start_now : not agent_position(3,2)
+<- 
+    !start_now.
+
++!move_up(up) : true 
 <-
-    .move(UP);
-    .move(RIGHT);
-    .move(SPACE);
-    .move(LEFT);
-    .move(UP);
-    .move(SPACE);
-    .move(RIGHT);
-    .move(SPACE);
-    .move(LEFT);
-    .move(UP);
-    .move(SPACE);
-   .move(RIGHT);
-   .move(SPACE);
-   .move(LEFT);
-    .move(UP);
-    .move(SPACE);
-   .move(SPACE);
-    .move(LEFT);
-    .move(DOWN);
-    .move(SPACE);
-    .wait(6500);
-    .move(UP);
-    .move(RIGHT);
-    .move(UP);
-    .move(SPACE);
-    .move(RIGHT);
-    .move(DOWN);
-    .move(SPACE);
-     .wait(500).
+    move_direction(UP);
+    .wait(500).
+    
++!move_down(down) : true 
+<-
+    move_direction(DOWN);
+    .wait(500).
+    
++!move_left(left) : true 
+<-
+    move_direction(LEFT);
+    .wait(500).
+    
++!move_right(right) : true 
+<-
+    move_direction(RIGHT);
+    .wait(500).
+    
+
++!move_nothing(space) : true 
+<-
+    move_direction(SPACE);
+    .wait(500).
+    
 
