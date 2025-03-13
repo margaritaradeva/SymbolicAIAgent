@@ -216,6 +216,7 @@ public class Kitchen extends Environment {
         String action = act.getTerm(0).toString();
         
             try{
+                action =action.replaceAll("\"", "").toUpperCase();
                 JSONObject actionData = new JSONObject().put("action", action);
                 socket.emit("action",actionData);
                 System.out.println("Action " + action);

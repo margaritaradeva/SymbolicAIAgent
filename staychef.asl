@@ -38,28 +38,28 @@
 
 +!move_up(up) : true 
 <-
-    move_direction(UP);
+    move_direction("up");
     .wait(500).
     
 +!move_down(down) : true 
 <-
-    move_direction(DOWN);
+    move_direction("down");
     .wait(500).
     
 +!move_left(left) : true 
 <-
-    move_direction(LEFT);
+    move_direction("left");
     .wait(500).
     
 +!move_right(right) : true 
 <-
-    move_direction(RIGHT);
+    move_direction("right");
     .wait(500).
     
 
 +!move_nothing(space) : true 
 <-
-    move_direction(SPACE);
+    move_direction("space");
     .wait(500).
     
 
