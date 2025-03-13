@@ -18,9 +18,7 @@ public class Kitchen extends Environment {
 
     @Override
     public void init(String[] args) {
-        // "fake" percept - just testing stuff
-        addPercept(Literal.parseLiteral("location(staychef, pos(1,1))"));
-
+        
         try {
             // Connect to Overcooked server on the localhost
             socket = IO.socket("http://localhost"); 
@@ -107,9 +105,24 @@ public class Kitchen extends Environment {
                                 for (int column=0; column<terrainRow.length(); column++){
                                     String item = terrainRow.getString(column); //exctract each item e.g soup, tile, chef
                                     if (item.equals(" ")){
-                                        item = "E";
+                                        item = "e";
                                     }
-                                    addPercept("staychef", Literal.parseLiteral("terrain("+row+","+column+","+item+")"));
+                                    if (item.equals("O")){
+                                        item = "onion";
+                                        addPercept("staychef", Literal.parseLiteral("onion("+column+","+row+")"));
+                                    }
+                                    if (item.equals("P")){
+                                        addPercept("staychef", Literal.parseLiteral("pot("+column+","+row+")"));
+                                    }
+                                    if (item.equals("D")){
+                                        addPercept("staychef", Literal.parseLiteral("plate("+column+","+row+")"));
+                                    }
+                                    if (item.equals("S")){
+                                        addPercept("staychef", Literal.parseLiteral("serve("+column+","+row+")"));
+                                    }
+                                    
+                                    addPercept("staychef", Literal.parseLiteral("terrain("+column+","+row+","+item+")"));
+
                                 }
                             }
 
