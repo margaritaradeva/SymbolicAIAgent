@@ -1,261 +1,150 @@
+delta(X, Y, D) :- X >= Y & D = X - Y.
+delta(X, Y, D) :- X < Y & D = Y - X.
+
+manhattan_distance(X, Y, Z, M, D) :- delta(X, Z, D1) & delta(Y, M, D2) & D = D1 + D2.
+
 free_tile(Z, M) :-  terrain(Z,M,Term) & .term2string(Term, StringTerm) & StringTerm == "e".
+free_of_human(X,Y) :- not human_position(X,Y).
 adjacent(X, Y, Z, M) :- (X = Z & ((Y=M+1) | (Y=M-1))) | (Y=M & ((X = Z + 1) | (X = Z - 1))).
+
+
+// Calculate which object is closest and use it - e.g. onions, pots, plates, serving spots
+object(pot, Z, M) :-
+    pot(Z, M) &
+    agent_position(AX, AY) &
+    manhattan_distance(AX, AY, Z, M, D) &
+    not (pot(Z1, M1) &
+         manhattan_distance(AX, AY, Z1, M1, D1) &
+         D1 < D).
+
+object(plate, Z, M) :-
+    plate(Z, M) &
+    agent_position(AX, AY) &
+    manhattan_distance(AX, AY, Z, M, D) &
+    not (plate(Z1, M1) &
+         manhattan_distance(AX, AY, Z1, M1, D1) &
+         D1 < D).
+
+object(serve, Z, M) :-
+    serve(Z, M) &
+    agent_position(AX, AY) &
+    manhattan_distance(AX, AY, Z, M, D) &
+    not (serve(Z1, M1) &
+         manhattan_distance(AX, AY, Z1, M1, D1) &
+         D1 < D).
+
+object(tomato, Z, M) :-
+    tomato(Z, M) &
+    agent_position(AX, AY) &
+    manhattan_distance(AX, AY, Z, M, D) &
+    not (tomato(Z1, M1) &
+         manhattan_distance(AX, AY, Z1, M1, D1) &
+         D1 < D).
+
+object(onion, Z, M) :-
+    onion(Z, M) &
+    agent_position(AX, AY) &
+    manhattan_distance(AX, AY, Z, M, D) &
+    not (onion(Z1, M1) &
+         manhattan_distance(AX, AY, Z1, M1, D1) &
+         D1 < D).
+
 
 
 !make_soup.
 
-+!make_soup :  agent_position(3,2)
++!make_soup :  begin(now)
 <-
     .print("Attempt to make soup");
-    .wait(2000);
-    !collect_onions(3);
-    action("space");
-    !go_to(plate);
-    action("space");
-    !go_to(pot);
-    action("space");
-    !go_to(serve);
-    action("space").
+    Recipes = [[onion,onion],[onion]];
+   
+    for ( .member(X,Recipes) ) {
+          !collect(X);
+          !go_to(plate);
+          !go_to(pot);
+          !go_to(serve);
+       }.
+ 
+    
     
 
-+!make_soup : not agent_position(3,2)
++!make_soup : not begin(now)
 <-  
     !make_soup.
 
 
-+!collect_onions(Onions_left) : Onions_left>0
-<-
-    .print("collecting an onion");
-    !go_to(onion);
-    action("space");
++!collect([])
+<- 
+    !execute;
+    .print("All ingredients collected for the recipe").
+
++!collect([Ingredient|Rest])
+<- 
+    .print("Collecting " , Ingredient);
+    !go_to(Ingredient);
     !go_to(pot);
-    action("space");
-    !collect_onions(Onions_left - 1).
-     
+    !collect(Rest).
 
-+!collect_onions(0)
-<-
-    .print("Collected an onion for the recipe").
 
-//////////// Go to Onion ////////////////
-+!go_to(onion) :  agent_position(X,Y) & onion(Z,M) & adjacent(X,Y,Z,M)
+//////////// Go to  ////////////////
++!go_to(Object) :  agent_position(X,Y) & object(Object,Z,M) & adjacent(X,Y,Z,M)
 <- 
     .print("arrived");
-    !turn_to_onion.
+    !turn_to(Object).
 
-+!go_to(onion) : agent_position(X,Y) & onion(Z,M) & (Y>M) & free_tile(X,Y-1) & not adjacent(X,Y,Z,M)
++!go_to(Object) : agent_position(X,Y) & object(Object,Z,M) & (Y>M) & free_tile(X,Y-1) & not adjacent(X,Y,Z,M) &  free_of_human(X,Y-1) 
 <-
     action("up");
     .wait(1200);
-    !go_to(onion).
+    !go_to(Object).
 
-+!go_to(onion) : agent_position(X,Y) & onion(Z,M) & (Y<M) & free_tile(X,Y+1) & not adjacent(X,Y,Z,M)
++!go_to(Object) : agent_position(X,Y) & object(Object,Z,M) & (Y<M) & free_tile(X,Y+1) & not adjacent(X,Y,Z,M) &  free_of_human(X,Y+1) 
 <-
     action("down");
     .wait(1200);
-    !go_to(onion).
+    !go_to(Object).
 
-+!go_to(onion) : agent_position(X,Y) & onion(Z,M) & (X>Z) & free_tile(X-1,Y) & not adjacent(X,Y,Z,M)
++!go_to(Object) : agent_position(X,Y) & object(Object,Z,M) & (X>Z) & free_tile(X-1,Y) & not adjacent(X,Y,Z,M) &  free_of_human(X-1,Y) 
 <-
     action("left");
     .wait(1200);
-    !go_to(onion).
+    !go_to(Object).
 
-+!go_to(onion) : agent_position(X,Y) & onion(Z,M) & (X<Z) & free_tile(X+1,Y) & not adjacent(X,Y,Z,M)
++!go_to(Object) : agent_position(X,Y) & object(Object,Z,M) & (X<Z) & free_tile(X+1,Y) & not adjacent(X,Y,Z,M) & free_of_human(X+1,Y) 
 <-
     action("right");
     .wait(1200);
-    !go_to(onion).
+    !go_to(Object).
 
-/////////// turn to onion ///////////
-+!turn_to_onion : agent_position(X,Y) & onion(Z,M) & (Y > M)
++!go_to(Object) : agent_position(X,Y) & (not (free_of_human(X+1,Y)) | not (free_of_human(X-1,Y)) | not (free_of_human(X,Y+1)) | not (free_of_human(X,Y-1)))
+<-
+    .wait(5000);
+    !go_to(Object).
+////////////// Turn to
++!turn_to(Object) : agent_position(X,Y) & object(Object, Z, M) & (Y > M) 
 <- 
     action("up");
+    !execute;
     .wait(700).
 
-
-+!turn_to_onion : agent_position(X,Y) & onion(Z,M) & (Y < M)
++!turn_to(Object) : agent_position(X,Y) & object(Object, Z, M) & (Y < M)
 <- 
     action("down");
+    !execute;
     .wait(700).
 
-
-+!turn_to_onion : agent_position(X,Y) & onion(Z,M) & (X > Z)
++!turn_to(Object) : agent_position(X,Y) & object(Object, Z, M) & (X > Z)
 <- 
     action("left");
+    !execute;
     .wait(700).
 
-
-+!turn_to_onion : agent_position(X,Y) & onion(Z,M) & (X < Z)
++!turn_to(Object) : agent_position(X,Y) & object(Object, Z, M) & (X < Z)
 <- 
     action("right");
+    !execute;
     .wait(700).
 
-//////////// Go to pot ////////////////
-+!go_to(pot) :  agent_position(X,Y) & pot(Z,M) & adjacent(X,Y,Z,M)
-<- 
-    .print("arrived");
-    !turn_to_pot.
-
-+!go_to(pot) : agent_position(X,Y) & pot(Z,M) & (Y>M) & free_tile(X,Y-1) & not adjacent(X,Y,Z,M)
++!execute : true
 <-
-    action("up");
-    .wait(1200);
-    !go_to(pot).
-
-+!go_to(pot) : agent_position(X,Y) & pot(Z,M) & (Y<M) & free_tile(X,Y+1) & not adjacent(X,Y,Z,M)
-<-
-    action("down");
-    .wait(1200);
-    !go_to(pot).
-
-+!go_to(pot) : agent_position(X,Y) & pot(Z,M) & (X>Z) & free_tile(X-1,Y) & not adjacent(X,Y,Z,M)
-<-
-    action("left");
-    .wait(1200);
-    !go_to(pot).
-
-+!go_to(pot) : agent_position(X,Y) & pot(Z,M) & (X<Z) & free_tile(X+1,Y) & not adjacent(X,Y,Z,M)
-<-
-    action("right");
-    .wait(1200);
-    !go_to(pot).
-
-/////////// turn to pot ///////////
-+!turn_to_pot : agent_position(X,Y) & pot(Z,M) & (Y > M)
-<- 
-    action("up");
-    .wait(700).
-
-
-+!turn_to_pot : agent_position(X,Y) & pot(Z,M) & (Y < M)
-<- 
-    action("down");
-    .wait(700).
-
-
-+!turn_to_pot : agent_position(X,Y) & pot(Z,M) & (X > Z)
-<- 
-    action("left");
-    .wait(700).
-
-
-+!turn_to_pot : agent_position(X,Y) & pot(Z,M) & (X < Z)
-<- 
-    action("right");
-    .wait(700).
-
-
-
-//////////// Go to plate ////////////////
-+!go_to(plate) :  agent_position(X,Y) & plate(Z,M) & adjacent(X,Y,Z,M)
-<- 
-    .print("arrived");
-    !turn_to_plate.
-
-+!go_to(plate) : agent_position(X,Y) & plate(Z,M) & (Y>M) & free_tile(X,Y-1) & not adjacent(X,Y,Z,M)
-<-
-    action("up");
-    .wait(1200);
-    !go_to(plate).
-
-+!go_to(plate) : agent_position(X,Y) & plate(Z,M) & (Y<M) & free_tile(X,Y+1) & not adjacent(X,Y,Z,M)
-<-
-    action("down");
-    .wait(1200);
-    !go_to(plate).
-
-+!go_to(plate) : agent_position(X,Y) & plate(Z,M) & (X>Z) & free_tile(X-1,Y) & not adjacent(X,Y,Z,M)
-<-
-    action("left");
-    .wait(1200);
-    !go_to(plate).
-
-+!go_to(plate) : agent_position(X,Y) & plate(Z,M) & (X<Z) & free_tile(X+1,Y) & not adjacent(X,Y,Z,M)
-<-
-    action("right");
-    .wait(1200);
-    !go_to(plate).
-
-/////////// turn to plate ///////////
-+!turn_to_plate : agent_position(X,Y) & plate(Z,M) & (Y > M)
-<- 
-    action("up");
-    .wait(700).
-
-
-+!turn_to_plate : agent_position(X,Y) & plate(Z,M) & (Y < M)
-<- 
-    action("down");
-    .wait(700).
-
-
-+!turn_to_plate : agent_position(X,Y) & plate(Z,M) & (X > Z)
-<- 
-    action("left");
-    .wait(700).
-
-
-+!turn_to_plate : agent_position(X,Y) & plate(Z,M) & (X < Z)
-<- 
-    action("right");
-    .wait(700).
-
-
-//////////// Go to serve ////////////////
-+!go_to(serve) :  agent_position(X,Y) & serve(Z,M) & adjacent(X,Y,Z,M)
-<- 
-    .print("arrived");
-    !turn_to_serve.
-
-+!go_to(serve) : agent_position(X,Y) & serve(Z,M) & (Y>M) & free_tile(X,Y-1) & not adjacent(X,Y,Z,M)
-<-
-    action("up");
-    .wait(1200);
-    !go_to(serve).
-
-+!go_to(serve) : agent_position(X,Y) & serve(Z,M) & (Y<M) & free_tile(X,Y+1) & not adjacent(X,Y,Z,M)
-<-
-    action("down");
-    .wait(1200);
-    !go_to(serve).
-
-+!go_to(serve) : agent_position(X,Y) & serve(Z,M) & (X>Z) & free_tile(X-1,Y) & not adjacent(X,Y,Z,M)
-<-
-    action("left");
-    .wait(1200);
-    !go_to(serve).
-
-+!go_to(serve) : agent_position(X,Y) & serve(Z,M) & (X<Z) & free_tile(X+1,Y) & not adjacent(X,Y,Z,M)
-<-
-    action("right");
-    .wait(1200);
-    !go_to(serve).
-
-/////////// turn to serve ///////////
-+!turn_to_serve : agent_position(X,Y) & serve(Z,M) & (Y > M)
-<- 
-    action("up");
-    .wait(700).
-
-
-+!turn_to_serve : agent_position(X,Y) & serve(Z,M) & (Y < M)
-<- 
-    action("down");
-    .wait(700).
-
-
-+!turn_to_serve : agent_position(X,Y) & serve(Z,M) & (X > Z)
-<- 
-    action("left");
-    .wait(700).
-
-
-+!turn_to_serve : agent_position(X,Y) & serve(Z,M) & (X < Z)
-<- 
-    action("right");
-    .wait(700).
-
-
-
-
+    action("space").
