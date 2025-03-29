@@ -173,14 +173,15 @@ placedObject(Thing,X,Y) :-
     !can_reach_ingredients_only;
     !can_reach_plates_only;
     !can_reach_serve_only;
-    !can_reach_pot(Count).
-    !test_case(Count).
+    !can_reach_pots_only(Count).
+    //!test_case(Count).
  
  +!start : not begin(now)
 <-  
     !start.
 
-
+///// PLANS FOR THE AGENT
+//
 //////////////////////////////// 1 OBJECT ///////////////////////////////////////////////////
 // When the agent can only reach 1 object - either onion/tomato, pot, serving station or a dish
 // In this case, in order to succeed in making recipes, the human has to be collabarive as well
@@ -259,7 +260,7 @@ placedObject(Thing,X,Y) :-
 // Base case: The orders list has been completed and therefore we can exit the plan.
 +!can_reach_serve_only : can_reach_agent(serve,X,Y) & recipes([])
 <-
-    .print("Case: agent can only serving spots ingredients. All recipes have now been completed.").
+    .print("Case: agent can only reach serving spots. All recipes have now been completed.").
 
 // Recursive case: There is still orders to be made. In this case for each order we pick up a soup from the human (from 
 // a shared counter) and do a call to the plan again so that we can proceed with the rest of the recipes.
@@ -275,36 +276,70 @@ placedObject(Thing,X,Y) :-
     .print("Case: agent can only reach serving spots. This plan is not applicable here -> skipping it.").
 ////////////
 
-
-
-///// CASE ONLY CAN REACH POT////
-+!can_reach_pot(Count) : can_reach_agent(pot,X,Y) & recipes([])
+// CASE: ONLY REACH POT
+// For this case the agent can reach serving pots and serving pots only. They cannot reach the other objects as 
+// counters are blocking their way of getting there. In this situation the agent will:
+// 1) Wait for the human to place an ingredient of the recipe on their shared counters.
+// 2) Grab the ingredient and place it in a pot. Repeat this until the pot has all ingredients needed for a recipe.
+// 3) Wait for the human to place a plate on the shared conuters. Grab the plate, pick up the soup and hand it back to the 
+//    human (on the shared counters).
+// 4) This plan continues until all of the recipes from the Orders list have been served.
+//
+// Special cases: human places ingredients that are not of this recipe on the shared counters -> the agent will pick them up
+// and place them on other counters to free up space. Consequtively, when making other recipes, they don't need to wait for
+// the human to place ingredients/plates on the shared counters as they can use those ones that have been previously "incorrect".
+//
+//
+// Base case: The orders list has been completed and therefore we can exit the plan.
++!can_reach_pots_only(Count) :  can_reach_agent(pot,X,Y) & recipes([])
 <-
-    .print("All recipes completed").
+    .print("Case: agent can only reach pots. All recipes have now been completed.").
 
-+!can_reach_pot(Count) : can_reach_agent(pot,X,Y) & recipes([FirstRecipe|_]) & active_pot(X,Y)
-<-
-    ?countInRecipe(onion, FirstRecipe, NOnion);
-    ?countInRecipe(tomato, FirstRecipe, NTomato);
-    !pick_from_human(placed_onion,NOnion,1,1);
-    !pick_from_human(placed_tomato,NTomato,1,1);
-    !pick_from_human(placed_dish,0);
+// Recursive case:
++!can_reach_pots_only(Count) : can_reach_agent(pot,X,Y) & recipes([FirstRecipe|_]) & active_pot(X,Y)
+<- 
+    ?countInRecipe(onion, FirstRecipe, OnionCount);
+    ?countInRecipe(tomato, FirstRecipe, TomatoCount);
+    .print("The agent has to pick up ",OnionCount," onions and ", TomatoCount," tomatoes.");
+    !pick_from_human(placed_onion, OnionCount,1);
+    !pick_from_human(placed_tomato, TomatoCount,1);
     !go_to(active_pot);
-    !wait_for_soup;
-    !go_to(counterTo);
+    !pick_from_human(placed_dish,1,0);
+    .wait(2000); // EDIT 
     remove_beliefs(active_pot(X,Y));
-    !wait_to_serve;
-    !can_reach_pot.
+    !pass_to_human(placed_soup,1);
+    .wait(4000);
+    !can_reach_pots_only(Count).
 
-+!can_reach_pot(Count) : can_reach_agent(pot,X,Y) & recipes([FirstRecipe|_]) & not(active_pot(X,Y))
+// Case:
++!can_reach_pots_only(Count) : can_reach_agent(pot,X,Y) & recipes([FirstRecipe|_]) & not(active_pot(X,Y))
 <-
     !choose_pot_for_recipe(FirstRecipe,Count);
-    !can_reach_pot(Count).
+    !can_reach_pots_only(Count).
 
-+!can_reach_pot(Count)
+// Fail condition: this plan was not applicable, so we exit it and do not execute it.
++!can_reach_pots_only(Count)
 <-
-    .print("Plan 'only pot/s' is not applicable here").
-    /////////////
+    .print("Case: agent can only reach pots. This plan is not applicable here -> skipping it.").
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 +!wait_to_serve
 <-
@@ -486,56 +521,93 @@ placedObject(Thing,X,Y) :-
     .wait(5000).
     //!wait_for_soup.
 
-
-
-//////////// Go to  ////////////////
+///// HELPER PLANS FOR THE AGENT: Used by the agent when executing the other plans
+//
+//////////////////////////////// GO TO ///////////////////////////////////////////////////
+// When the agent wants to go somewhere it will call this plan which:
+// 1) Checks if the agent is already at the desired location. In that case,
+//   it calls the turn_to helper plan, which will turn the agent towards the object they want to interact with.
+// 2) If the agent is not adjacent to the desired location, the plan will use an external 
+//    action - compute_path, which uses the A* algorithm to find an optimal path to reach 
+//    the desired location of the agent. 
+// Human collision (the human going into the agent's way) is accounted for in the Java environment
+//
+// Base case: The agent has arrived at the desired location and therefore we can exit the plan by calling turn_to.
 +!go_to(Object) :  agent_position(X,Y) & object(Object,Z,M) & adjacent(X,Y,Z,M)
 <- 
-    .print("arrived");
-    .wait(700);
+    .print("Go to helper function: the agent has reached the desired destination.");
+    .wait(300);
     !turn_to(Object).
 
+// Recursive case: The agent is not at the desired location, so it calls the A* algorithm to compute a path for it
+// After that it calls go_to so that the base case can be reached.
 +!go_to(Object) : agent_position(X,Y) & object(Object,Z,M) & not adjacent(X,Y,Z,M) 
 <-
-    .print("Going to", object(Object, Z,M));
+    .print("The agent is going to:", object(Object, Z,M));
     compute_path(Z,M);
     !go_to(Object).
 
+// Fail condition: if the plan has executed too quickly and failed, the plan will be called again until successful computation
 +!go_to(Object)
 <-
-    .print("go_to ", Object," failed. Trying again...");
+    .print("Going to: ", Object," failed. Trying again...");
     !go_to(Object).
-////////////////////////////////////////
 
-////////////// Turn to object ///////////////
+
+//////////////////////////////// TURN TO ///////////////////////////////////////////////////
+// When the agent wants to turn to an object it will call this plan which:
+// - Based on the coordinates of the agent and the object will decide which direction the agent has to turn towards
+// - This is needed as in order to interact with pots, plates, etc., the agent must be facing them.
+// - The plan additionally calls the !execute plan which is responsible for interaction with the objects.
+//
+// NB: the layout's coordinates are as follows:
+// Top left corner: (0,0)
+// Bottom left corner: (O,Y)
+// Top right corner: (X,0)
+// Bottom right corner: (X,Y)
+//
+// Right: the agent's X coordinate is smaller than the object's X coordinate which means the object is on the agent's right side
 +!turn_to(Object) : agent_position(X,Y) & object(Object, Z, M) & (X < Z)
 <- 
     action("right");
     !execute.
 
+// Up: the agent's Y coordinate is greater than the object's Y coordinate which means the object is above the agent 
 +!turn_to(Object) : agent_position(X,Y) & object(Object, Z, M) & (Y > M) 
 <- 
     action("up");
     !execute.
 
+// Down: the agent's Y coordinate is smaller than the object's Y coordinate which means the object is below the agent 
 +!turn_to(Object) : agent_position(X,Y) & object(Object, Z, M) & (Y < M)
 <- 
     action("down");
     !execute.
 
+// Left: the agent's X coordinate is greater than the object's X coordinate which means the object is on the agent's left side
 +!turn_to(Object) : agent_position(X,Y) & object(Object, Z, M) & (X > Z)
 <- 
     action("left");
     !execute.
 
+ // Fail condition: if the plan has executed too quickly and failed, the plan will be called again until successful computation
 +!turn_to(Object)
 <-
-    print("turn_to ", Object," failed. Trying again...");
+    print("Turning to: ", Object," failed. Trying again...");
     !turn_to(Object).
 
+//////////////////////////////// EXECUTE ///////////////////////////////////////////////////
+// This helper function is used for more clarity in the execution of other plans. It simply
+// calls the external action "space" which is responsible for interaction with objects.
+
+// Only case: this function will always execute as there is no preconditions needed for interactions as long as we have reached 
+// the desired location in the previous plans.
 +!execute : true
 <-
     action("space").
+
+
+
 //////////////////////////////////// TESTS
 +!test_case(Count) :  recipes([])
 <-
