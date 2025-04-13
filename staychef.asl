@@ -209,14 +209,12 @@ can_reach_all_human :-
     ?count_objects(pot(_,_), Count);
     .wait(3000);
     .wait(300);
-    !retrieve_current_recipe(2);
     //!collect_recipe(Count);
     //!can_reach_ingredients_pots(Count);
     //!test_route_cost;
     //!can_reach_pots_only(Count);
     //!can_reach_ingredients_only(1);
     //!can_reach_allfour(Count);
-    //!can_reach_ingredients_plates;
     //!can_reach_ingredients_serve.
     //!can_reach_plates_pots(Count).
     //!can_reach_plates_serve.
@@ -226,10 +224,14 @@ can_reach_all_human :-
     //!can_reach_ingplpots(Count);
     //!can_reach_pots_serve(Count);
 
-    //!can_reach_ingredients_only;
-    //!can_reach_plates_only;
-    //!can_reach_serve_only;
+    // Two objects:
+    !can_reach_ingredients_plates(1);
+
+    // Single object
+    !can_reach_plates_only;
+    !can_reach_serve_only;
     !can_reach_pots_only(Count);
+    !can_reach_ingredients_only(1);
     //!test_case(Count).
     .print("All  plans have been executed. The agent can now rest :)").
  
@@ -377,7 +379,7 @@ can_reach_all_human :-
     .print("Case: agent can only reach pots. All recipes have now been completed.").
 
 // Prioritised goal: if we pass a plate to the agent and there is a soup that is already cooked -> grab the plate, plate the soup and pass it back on the shared counter
-+!can_reach_pots_only(Count) :  active_pot(X,Y) & placed_dish(K,T) & pot_ready(X,Y) & object(counterTo,S,J)
++!can_reach_pots_only(Count) :  active_pot(X,Y) & placed_dish(K,T) & pot_ready(X,Y) & object(counterTo,S,J) &  can_reach_agent(pot,X,Y)
 <- 
     !pick_from_human(placed_dish,1,0,0,0);
     !go_to(active_pot,X,Y);
@@ -387,10 +389,10 @@ can_reach_all_human :-
 
 // Case 1: we passed an onion to the agent -> check if it can be placed in any pot by using the internal function. If not, move the onion away from the counter to free up space (this
 // happens in the "load" plan).
-+!can_reach_pots_only(Count) : recipes(Recipes) & all_pots(used) & placed_onion(W,S) & active_pot(Z,M) & active_pot(J,D) & not object(counterTo,W,S) & not (Z = J & M = D)  & .findall(active_pot(Xp, Yp), active_pot(Xp, Yp), AllPots)
++!can_reach_pots_only(Count) : recipes(Recipes) & all_pots(used) & placed_onion(W,S) & not object(counterTo,W,S)   & .findall(active_pot(Xp, Yp), active_pot(Xp, Yp), AllPots) 
+& can_reach_agent(pot,A,B)
   & not (AllPots = [] )
 <-
-    .print(Z,M,J,D);
     my.internal.actions.get_pot(AllPots, Recipes, onion, X, Y);
     !load(X,Y,placed_onion);
     .wait(500);
@@ -398,10 +400,9 @@ can_reach_all_human :-
 
 // Case 2: we passed an tomato to the agent -> check if it can be placed in any pot by using the internal function. If not, move the tomato away from the counter to free up space (this
 // happens in the "load" plan).
-+!can_reach_pots_only(Count) : recipes(Recipes) & all_pots(used) & placed_tomato(W,S) & active_pot(Z,M) & active_pot(J,D) & not object(counterTo,W,S) & not (Z = J & M = D)  & .findall(active_pot(Xp, Yp), active_pot(Xp, Yp), AllPots)
-  & not ( AllPots = [] )
++!can_reach_pots_only(Count) : recipes(Recipes) & all_pots(used) & placed_tomato(W,S) & not object(counterTo,W,S)  & .findall(active_pot(Xp, Yp), active_pot(Xp, Yp), AllPots)
+  &  can_reach_agent(pot,A,B) & not ( AllPots = [] )
 <-
-    .print(Z,M,J,D);
     my.internal.actions.get_pot(AllPots, Recipes, tomato, X, Y);
     !load(X,Y,placed_tomato);
     .wait(500);
@@ -428,26 +429,6 @@ can_reach_all_human :-
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 //////////////////////////////// 2 OBJECTS ///////////////////////////////////////////////////
 // When the agent can only reach 2 objects
 // In this case, in order to succeed in making recipes, the human has to be collabarive as well
@@ -455,26 +436,67 @@ can_reach_all_human :-
 //
 //
 // CASE: ONLY CAN REACH INGREDIENTS + PLATES ////
-+!can_reach_ingredients_plates : (can_reach_agent(onion,Z,M)| can_reach_agent(tomato,P,T)) & can_reach_agent(plate,X,Y) & recipes([])
+//
+// For this case the agent can reach plates and  ingredients only. They cannot reach the other objects as 
+// counters are blocking their way of getting there. In this situation the agent will:
+//      1) Alternate between tomatoes and onions to:
+//          -check if an ingredient can be placed in any of the pots using get_pot internal action just like in can_reach_pots_only
+//          -if yes, it will psas the ingredient to the human and if not it will simply ignore it
+//      2) If a soup becomes cooked, the agent will pass a plate to the human so that they can serve it.
+// The plan will continue executing untill all recipes have been completed. For the case there is no free counters to pass ingredients/plates,
+// the agent will wait for the human to pick them up.
+//
+// Base case: The orders list has been completed and therefore we can exit the plan.
++!can_reach_ingredients_plates(N) : (can_reach_agent(onion,Z,M)| can_reach_agent(tomato,P,T)) & can_reach_agent(plate,X,Y) & recipes([])
 <-
     .print("Case: agent can only reach ingredients and plates. All recipes have now been completed.").
 
-+!can_reach_ingredients_plates : (can_reach_agent(onion,Z,M) | can_reach_agent(tomato,P,T)) & can_reach_agent(plate,X,Y) & recipes([FirstRecipe|_])
+// Prioritised task: if a soup is cooked, grab a plate and pass it to the human 
++!can_reach_ingredients_plates(N) :  can_reach_agent(plate,X,Y) & (can_reach_agent(onion,Z,M) | can_reach_agent(tomato,P,T)) & recipes([FirstRecipe|_])  & pot_ready(A,B)
 <-
-    ?countInRecipe(onion, FirstRecipe, NOnion);
-    ?countInRecipe(tomato, FirstRecipe, NTomato);
-    !pass_to_human(onion,NOnion);
-    !pass_to_human(tomato,NTomato);
-    .wait(400);
+    .print("Getting a plate and passing it where the human can reach it.");
     !pass_to_human(plate,1);
-    .wait(1000); // PASS THE NEXT RECIPE
-    !can_reach_ingredients_plates.
+    remove_beliefs(pot_ready(A,B));
+    !can_reach_ingredients_plates(N).
 
-+!can_reach_ingredients_plates
+// Onions: if we pass an onion can the human place it in any of the pots? if yes, pass it and if not - ignore (handled in the "pass" plan)
++!can_reach_ingredients_plates(N) : all_pots(used) & (can_reach_agent(onion,Z,M) | can_reach_agent(tomato,P,T)) & can_reach_agent(plate,X,Y) & recipes(Recipes)
+& .findall(active_pot(Xp, Yp), active_pot(Xp, Yp), AllPots)
+  & not ( AllPots = [] ) & N=1
+<-
+    my.internal.actions.get_pot(AllPots, Recipes, onion, A,B);
+    !pass(A,B,onion);
+    .wait(500);
+    Nnew=N+1; // now try to pass a tomato
+    !can_reach_ingredients_plates(Nnew).
+
+// Tomatoes: if we pass an onion can the human place it in any of the pots? if yes, pass it and if not - ignore (handled in the "pass" plan)
++!can_reach_ingredients_plates(N) : all_pots(used) & (can_reach_agent(onion,Z,M) | can_reach_agent(tomato,P,T)) & can_reach_agent(plate,X,Y) & recipes(Recipes)
+& .findall(active_pot(Xp, Yp), active_pot(Xp, Yp), AllPots)
+  & not ( AllPots = [] ) & N=2
+<-
+    .print(AllPots);
+    my.internal.actions.get_pot(AllPots, Recipes, tomato, A,B);
+    !pass(A,B,tomato);
+    .wait(500);
+    Nnew=N-1; // now try to pass an onion
+    !can_reach_ingredients_plates(Nnew).
+
+// First goal: "activate" all of the pots by calling choose_pot_for recipe so that we can keep track of pots by adding them in the belief base
++!can_reach_ingredients_plates(N) : recipes([FirstRecipe|_]) & not all_pots(used)
+<-
+    .print("Activating pots...");
+    !choose_pot_for_recipe(FirstRecipe, Count);
+    .wait(400);
+    !can_reach_ingredients_plates(N).
+
+// Fail condition: this plan was not applicable, so we exit it and do not execute it.
++!can_reach_ingredients_plates(N)
 <- 
     .print("Case: agent can only reach ingredients and plates. This plan is not applicable here -> skipping it.").
 
 // CASE: ONLY CAN REACH INGREDIENTS + POTS ////
+//
 +!can_reach_ingredients_pots(Count) : recipes([])
 <-
     .print("Case: agent can only reach ingredients and pots. All recipes have now been completed.").
@@ -897,6 +919,43 @@ can_reach_all_human :-
 <-
     .print("Coordinates (",X,", ",Y,") do not match any pots.").
 
+////////////// PASS /////////////
+// This helper function is called after calling the get_pot internal function. Its purpose is to handle a single ingredient and pass it to the human:
+//      - if the function had returned X and Y smaller than 999, it means that the ingredient is valid and we can simply grab it and pass it to the human
+//      - if there is no free counters to pass the ingredient, the agent will wait for one to be freed.
+//      - if the function had returned X and Y equal to 999, that means that the ingredient is not compatible with any pot. In this case, the agent will
+//        not do anything - it will ignore the ingredient.
+//
+// Can pass: we  have a valid pot, ingredient is compatible and a counter to pass the ingredient, so we grab it and pass it to the human
++!pass(X,Y,Thing) : X < 999 & Y < 999 & active_pot(X,Y) & object(counterTo,Z,M) 
+<-
+    !go_to(Thing);
+    .wait(300);
+    !go_to(counterTo).
+
+// No free counter: we have a valid po, ingredient is compatible but there is no free counters to pass it -> wait and then try again
++!pass(X,Y,Thing) : X < 999 & Y < 999 & active_pot(X,Y) & not (object(counterTo,Z,M) )
+<-
+    .print("no free counters to pass stuff");
+    .wait(500);
+    !pass(X,Y,Thing).
+
+// Does not match: the ingredient is not compatible with any pots, therefore just ignore it
++!pass(X,Y,Thing) : X = 999 & Y = 999
+<-
+    .print("This ingredient is not compatible with any pot").
+
+// Fail condition: the coordinates returned from get_pot do not match any active pots
++!pass(X,Y,Thing)
+<-
+    .print("Coordinates (",X,", ",Y,") do not match any pots.").
+
+
+
+
+
+
+
 +!pick_load(Thing,N,NOriginal,X,Y) : N = 0
 <-
     !go_to(active_pot,X,Y);
@@ -1030,16 +1089,9 @@ can_reach_all_human :-
     !turn_to(pot);
     !go_to(serve).
     
-//+!wait_for_soup : pot_ready(X,Y)
-//<-
-  //  .print("soup is ready to be picked up").
 
 
-+!wait_for_soup
-<-
-    .print("waiting for soup to cook");
-    .wait(5000).
-    //!wait_for_soup.
+
 
 
 
@@ -1062,10 +1114,76 @@ can_reach_all_human :-
 // NB: If you entered an index out of range, e.g. 500, the internal action will return the first
 //     recipe in the orders list.
 
-+!retrieve_current_recipe(N) : recipes(Recipes)
++!retrieve_current_recipe_test(N) : recipes(Recipes)
 <- 
    my.internal.actions.get_recipe_at_index(Recipes, N, CurrentRecipe);
    ?countInRecipe(onion, CurrentRecipe, OnionCount);
    ?countInRecipe(tomato, CurrentRecipe, TomatoCount);
    .print("Current recipe at index ", N, " is: ", CurrentRecipe);
    .print("This recipe contains ", OnionCount, " onions and ",TomatoCount, " tomatoes.").
++!retrieve_current_recipe_test(N)
+<-
+    .print("Retrieving current recipes test fails").
+
+// Test for checking the get_pot internal action
+// For this test to work, you (the human) must pick up an onion/tomato and place it on a shared with the agent counter.
+// The test will:
+//      - "activate" all of the pots
+//      - call get_pot.java and print out which pot this ingredient will be placed into.
+//      - each action is delibarately slowed down significantly so that you have time to trace the outputs in the MAS console
+// If X and Y return (999,999) -> the ingredient does cannot be placed in any pots because they are either full or do not match the recipe
+// If X and Y return any other number: this is the coordinates of the pot that needs loaded
++!get_pots_test(Count) :  can_reach_agent(pot,X,Y) & recipes([])
+<-
+    .print("Test for get_pots.java. All recipes have now been completed.").
+
++!get_pots_test(Count) :  active_pot(X,Y) & placed_dish(K,T) & pot_ready(X,Y) & object(counterTo,S,J) &  can_reach_agent(pot,X,Y)
+<- 
+    .print("Pot (", X, ", ",Y,") is cooked. Going for a plate now.");
+    !pick_from_human(placed_dish,1,0,0,0);
+    .wait(2000);
+    .print("Now going to pot(",X,", ",Y,") to pick up the soup");
+    !go_to(active_pot,X,Y);
+    .wait(2000);
+    .print("Going to pass the the soup to the human now.");
+    !go_to(counterTo);
+    .wait(400);
+    !get_pots_test(Count).
+
++!get_pots_test(Count) : recipes(Recipes) & all_pots(used) & placed_onion(W,S) & not object(counterTo,W,S)  & .findall(active_pot(Xp, Yp), active_pot(Xp, Yp), AllPots)
+  & not (AllPots = [] )
+<-
+    .print("Cheking if a single onion fits any of those recipes: ",Recipes,". Current available pots: ",AllPots);
+    my.internal.actions.get_pot(AllPots, Recipes, onion, X, Y);
+    .wait(3000);
+    .print("The function returned coordinates X: ",X," and Y: ",Y);
+    !load(X,Y,placed_onion);
+    .wait(3000);
+    !get_pots_test(Count).
+
++!get_pots_test(Count) : recipes(Recipes) & all_pots(used) & placed_tomato(W,S) & not object(counterTo,W,S)  & .findall(active_pot(Xp, Yp), active_pot(Xp, Yp), AllPots)
+  & not (AllPots = [] )
+<-
+    .print("Cheking if a single tomato fits any of those recipes: ",Recipes,". Current available pots: ",AllPots);
+    my.internal.actions.get_pot(AllPots, Recipes, tomato, X, Y);
+    .wait(3000);
+    .print("The function returned coordinates X: ",X," and Y: ",Y);
+    !load(X,Y,placed_tomato);
+    .wait(3000);
+    !get_pots_test(Count).
+
++!get_pots_test(Count) : recipes([FirstRecipe|_]) & not all_pots(used)
+<-
+    .print("Activating pots...");
+    !choose_pot_for_recipe(FirstRecipe, Count);
+    !get_pots_test(Count).
+
++!get_pots_test(Count) : recipes([FirstRecipe|_])
+<-
+    .wait(500);
+    .print("Waiting for human to place ingredients or plates.");
+    !get_pots_test(Count).
+
++!get_pots_test(Count)
+<-
+    .print("Testing get_pots.java fails").
