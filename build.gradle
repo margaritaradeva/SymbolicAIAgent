@@ -25,6 +25,7 @@ dependencies {
 
     // to use locally installed jars:
     implementation fileTree(dir: 'lib', include: '*.jar')
+    implementation fileTree(dir: 'jia', include: ['*.jar'])
 }
 
 sourceSets {

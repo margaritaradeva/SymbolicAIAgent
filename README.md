@@ -14,7 +14,7 @@ This repository contains a **Jason 3.2.0**–based **Symbolic AI** agent that in
 ## Links & Related Repos
 
 - **Overcooked-AI (core environment):**
-  https://github.com/margaritaradeva/overcooked_ai
+  https://github.com/margaritaradeva/OvercookedAI.git
 - **Original open-source repository (not needed):**
   https://github.com/HumanCompatibleAI/overcooked_ai
 
@@ -25,11 +25,11 @@ This repository contains a **Jason 3.2.0**–based **Symbolic AI** agent that in
 Ensure you have the following installed:
 
 - **Jason**: v3.2.0 
-- **Java**: OpenJDK 17  (do not use a higher version)
-- **Git Bash**  (set as your default terminal, e.g. in VS Code)
+- **Java**: OpenJDK 17  (do **not** use a higher version)
+- **Git Bash**  (set as your default terminal, e.g. in VS Code, if using Windows)
 - **Gradle** - You do **NOT** need to install it as it is already contained within the repository
 
-> **Note:** Additional dependencies (Python, Node, etc.) are required by the Overcooked-AI environment—refer to its README.
+> **Note:** Additional dependencies (Python, Node, etc.) are required by the Overcooked-AI environment-refer to its README.
 
 ---
 
