@@ -328,7 +328,7 @@ can_reach_all_human :-
     my.internal.actions.get_recipe_at_index(Recipes, N, CurrentRecipe);
     ?countInRecipe(onion, CurrentRecipe, OnionCount);
     ?countInRecipe(tomato, CurrentRecipe, TomatoCount);
-    thought("Passing ingredients to human for recipe " + CurrentRecipe);
+    thought("Passing ingredients to human for recipe " , CurrentRecipe);
     !pass_to_human(onion,OnionCount);
     !pass_to_human(tomato,TomatoCount);
     Nnew = N+1; 
@@ -1660,7 +1660,6 @@ PlateHuman > PlateAgent & pot_ready(A,B)
 ///// TESTING ROUTE COSTS ////
 // This test queries the Manhattan distance between the agent and two object types (onion and plate).
 // It prints out their computed distances to verify the route_cost rule works correctly.
-+!test_route_cost
 +!test_route_cost
 <-
     ?route_cost(onion, CostOnion);
